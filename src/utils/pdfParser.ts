@@ -235,7 +235,17 @@ function extractFallback(rows: Map<number, TextItem[]>): PdfExtractedData[] {
   return results;
 }
 
+// Parse standard decimal numbers (e.g., 468735.22)
+function parseStandardNumber(str: string): number {
+  if (!str) return 0;
+  const clean = str.replace(/[^\d.-]/g, '').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+}
+
 // Manual data entry - parse from a text table format
+// Format: NAME;RECEITA_LIQUIDA;MARGEM%;PARTICIPACAO%
+// Uses standard decimal format (dot as decimal separator)
 export function parseManualData(text: string): PdfExtractedData[] {
   const results: PdfExtractedData[] = [];
   const lines = text.split('\n').filter(l => l.trim());
@@ -247,9 +257,9 @@ export function parseManualData(text: string): PdfExtractedData[] {
       if (name) {
         results.push({
           productName: name,
-          totalReceitaLiquida: parseBrNumber(parts[1]),
-          margemLiquida: parsePercentage(parts[2]),
-          participacao: parsePercentage(parts[3]),
+          totalReceitaLiquida: parseStandardNumber(parts[1]),
+          margemLiquida: parseStandardNumber(parts[2]),
+          participacao: parseStandardNumber(parts[3]),
         });
       }
     }
