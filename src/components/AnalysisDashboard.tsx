@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BarChart3, PieChart, History, Save, Calendar } from 'lucide-react';
+import { BarChart3, PieChart, History, Save } from 'lucide-react';
 import type { AnalysisData, EvaluationType, PdfExtractedData, DateConfig } from '@/types/analysis';
 import { EVALUATION_LABELS } from '@/types/analysis';
 import { DEFAULT_PRODUCT_LINES } from '@/data/productLines';
@@ -8,6 +8,7 @@ import PdfUploader from './PdfUploader';
 import SalesAnalysis from './SalesAnalysis';
 import MarginAnalysis from './MarginAnalysis';
 import HistoryModule from './HistoryModule';
+import AnalysisCharts from './AnalysisCharts';
 import { toast } from 'sonner';
 
 type TabType = 'sales' | 'margins' | 'history';
@@ -273,14 +274,20 @@ const AnalysisDashboard: React.FC = () => {
 
         {/* Tab Content */}
         {activeTab === 'sales' && (
-          <SalesAnalysis data={data} onGrossRevenueChange={handleGrossRevenueChange} />
+          <>
+            <AnalysisCharts data={data} type="sales" />
+            <SalesAnalysis data={data} onGrossRevenueChange={handleGrossRevenueChange} />
+          </>
         )}
         {activeTab === 'margins' && (
-          <MarginAnalysis
-            data={data}
-            onMarginTargetChange={handleMarginTargetChange}
-            onParticipationTargetChange={handleParticipationTargetChange}
-          />
+          <>
+            <AnalysisCharts data={data} type="margins" />
+            <MarginAnalysis
+              data={data}
+              onMarginTargetChange={handleMarginTargetChange}
+              onParticipationTargetChange={handleParticipationTargetChange}
+            />
+          </>
         )}
         {activeTab === 'history' && (
           <HistoryModule
