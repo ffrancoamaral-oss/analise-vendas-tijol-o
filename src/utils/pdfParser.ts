@@ -1,14 +1,20 @@
 import type { PdfExtractedData } from '@/types/analysis';
 import { matchPdfNameToProductLine } from '@/data/productLines';
 
-function parseBrNumber(str: string): number {
+/**
+ * Parse Brazilian number format: R$ 238.066,97 → 238066.97
+ */
+function parseBrCurrency(str: string): number {
   if (!str) return 0;
   const clean = str.replace(/R\$\s*/g, '').replace(/\./g, '').replace(',', '.').trim();
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
 }
 
-function parsePercentage(str: string): number {
+/**
+ * Parse Brazilian percentage format: 48,47% → 48.47
+ */
+function parseBrPercent(str: string): number {
   if (!str) return 0;
   const clean = str.replace('%', '').replace(',', '.').trim();
   const num = parseFloat(clean);
@@ -19,9 +25,16 @@ interface TextItem {
   str: string;
   x: number;
   y: number;
-  width: number;
 }
 
+/**
+ * Main PDF parser - extracts product line data from Rentabilidade PDF
+ * 
+ * PDF Column Order:
+ * GRUPOS | Total Custo | Total Receita Bruta | Lucro Bruto $ | % Margem Bruta | Total Receita Liquida | Lucro Lqd $ | %Margem. Liquida | % Participação
+ * 
+ * We extract: Total Receita Liquida (R$ index 3), %Margem Liquida (% index 1), % Participação (% index 2)
+ */
 export async function parsePdfFile(file: File): Promise<PdfExtractedData[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -34,7 +47,7 @@ export async function parsePdfFile(file: File): Promise<PdfExtractedData[]> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const items = content.items as Array<{ str: string; transform: number[]; width: number }>;
+    const items = content.items as Array<{ str: string; transform: number[] }>;
     
     for (const item of items) {
       if (item.str.trim()) {
@@ -42,226 +55,101 @@ export async function parsePdfFile(file: File): Promise<PdfExtractedData[]> {
           str: item.str.trim(),
           x: Math.round(item.transform[4]),
           y: Math.round(item.transform[5]),
-          width: item.width || 0,
         });
       }
     }
   }
   
-  // Group by Y position (rows) with tolerance
-  const rows = groupByY(allItems, 3);
+  // Group items into rows by Y position (tolerance of 4px)
+  const rows = groupIntoRows(allItems, 4);
   
-  // Find header row to identify column positions
-  const headerInfo = findColumnPositions(rows);
+  // Reconstruct each row as a single text line
+  const textLines: string[] = [];
+  const sortedYs = Array.from(rows.keys()).sort((a, b) => b - a); // top to bottom
   
-  if (headerInfo) {
-    return extractWithColumns(rows, headerInfo);
+  for (const y of sortedYs) {
+    const items = rows.get(y)!;
+    items.sort((a, b) => a.x - b.x);
+    // Join with spaces, preserving separation
+    const line = items.map(i => i.str).join('  ');
+    textLines.push(line);
   }
   
-  // Fallback: try line-by-line extraction
-  return extractFallback(rows);
+  return extractProductData(textLines);
 }
 
-interface ColumnPositions {
-  receitaLiquidaX: number;
-  margemLiquidaX: number;
-  participacaoX: number;
-  headerY: number;
-}
-
-function groupByY(items: TextItem[], tolerance: number): Map<number, TextItem[]> {
+function groupIntoRows(items: TextItem[], tolerance: number): Map<number, TextItem[]> {
   const rows = new Map<number, TextItem[]>();
-  const sortedItems = [...items].sort((a, b) => b.y - a.y);
   
-  for (const item of sortedItems) {
-    let foundKey: number | null = null;
+  for (const item of items) {
+    let matchedY: number | null = null;
     for (const key of rows.keys()) {
       if (Math.abs(key - item.y) <= tolerance) {
-        foundKey = key;
+        matchedY = key;
         break;
       }
     }
     
-    if (foundKey !== null) {
-      rows.get(foundKey)!.push(item);
+    if (matchedY !== null) {
+      rows.get(matchedY)!.push(item);
     } else {
       rows.set(item.y, [item]);
     }
   }
   
-  // Sort each row by X
-  for (const [, items] of rows) {
-    items.sort((a, b) => a.x - b.x);
-  }
-  
   return rows;
 }
 
-function findColumnPositions(rows: Map<number, TextItem[]>): ColumnPositions | null {
-  for (const [y, items] of rows) {
-    const fullText = items.map(i => i.str).join(' ');
-    
-    if (fullText.includes('Receita Liquida') || fullText.includes('Receita Líquida')) {
-      // Find the X positions of our target columns
-      let receitaLiquidaX = 0;
-      let margemLiquidaX = 0;
-      let participacaoX = 0;
-      
-      for (const item of items) {
-        const lower = item.str.toLowerCase();
-        if (lower.includes('receita') && lower.includes('liquid')) {
-          // This could be "Total Receita Liquida" - we need the second one if there are two
-          if (receitaLiquidaX === 0) {
-            receitaLiquidaX = item.x;
-          }
-        }
-        if (lower.includes('margem') && lower.includes('liquid')) {
-          margemLiquidaX = item.x;
-        }
-        if (lower.includes('participa')) {
-          participacaoX = item.x;
-        }
-      }
-      
-      // Check if we also see "Total Receita Liquida" as separate words
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].str.toLowerCase() === 'total' && items[i + 1]?.str.toLowerCase().includes('receita')) {
-          // Check if this is the second "Total Receita Liquida" column
-          const combinedX = items[i].x;
-          if (combinedX > receitaLiquidaX) {
-            receitaLiquidaX = combinedX;
-          }
-        }
-      }
-      
-      if (receitaLiquidaX > 0 || margemLiquidaX > 0 || participacaoX > 0) {
-        return { receitaLiquidaX, margemLiquidaX, participacaoX, headerY: y };
-      }
-    }
-  }
-  return null;
-}
-
-function extractWithColumns(rows: Map<number, TextItem[]>, cols: ColumnPositions): PdfExtractedData[] {
+/**
+ * Extract product data from reconstructed text lines.
+ * 
+ * Strategy: For each line, check if it contains a known product name.
+ * Then extract all R$ values and % values from the line.
+ * 
+ * Column mapping (0-indexed):
+ * R$ values: [0]=Total Custo, [1]=Total Receita Bruta, [2]=Lucro Bruto, [3]=Total Receita Liquida, [4]=Lucro Lqd
+ * % values: [0]=% Margem Bruta, [1]=%Margem Liquida, [2]=% Participação
+ */
+function extractProductData(lines: string[]): PdfExtractedData[] {
   const results: PdfExtractedData[] = [];
-  const tolerance = 60; // X tolerance for column matching
   
-  const sortedRows = Array.from(rows.entries()).sort(([a], [b]) => b - a);
-  
-  let pastHeader = false;
-  
-  for (const [y, items] of sortedRows) {
-    if (y >= cols.headerY) {
-      pastHeader = true;
-      continue;
-    }
-    if (!pastHeader) continue;
+  for (const line of lines) {
+    // Skip header/total lines
+    const upper = line.toUpperCase();
+    if (upper.includes('TOTAL GERAL') || upper.includes('GRUPOS') || upper.includes('TOTAL CUSTO')) continue;
     
-    const fullText = items.map(i => i.str).join(' ');
-    if (fullText.includes('Total Geral') || fullText.includes('total geral')) break;
+    // Try to find a product name - look for pattern: NAME (CODE)
+    const productMatch = line.match(/([A-ZÁÉÍÓÚÃÕÇ\s\/]+?)\s*\(\d+\)/i);
+    if (!productMatch) continue;
     
-    // First item(s) should be the product name
-    const nameItems = items.filter(i => !i.str.match(/^[R$\d%.,\s-]+$/) && !i.str.match(/^\d/));
-    if (nameItems.length === 0) continue;
-    
-    const rawName = nameItems.map(i => i.str).join(' ').replace(/\s*\(\d+\)\s*$/, '').trim();
+    const rawName = productMatch[1].trim();
     const mappedName = matchPdfNameToProductLine(rawName);
     if (!mappedName) continue;
     if (results.find(r => r.productName === mappedName)) continue;
     
-    // Find values by proximity to column headers
-    const allValues = items.filter(i => i.str.match(/[R$\d%.,]/));
+    // Extract all R$ amounts from the line
+    const currencyMatches = line.match(/R\$\s*[\d.,]+/g) || [];
+    const currencyValues = currencyMatches.map(parseBrCurrency);
     
-    // Extract R$ values and percentages
-    const rValues: { x: number; value: number }[] = [];
-    const pctValues: { x: number; value: number }[] = [];
+    // Extract all percentage values from the line
+    const percentMatches = line.match(/[\d]+[.,][\d]+%/g) || [];
+    const percentValues = percentMatches.map(parseBrPercent);
     
-    for (const item of allValues) {
-      if (item.str.includes('R$') || (item.str.match(/^[\d.,]+$/) && !item.str.includes('%'))) {
-        rValues.push({ x: item.x, value: parseBrNumber(item.str) });
-      }
-      if (item.str.includes('%')) {
-        pctValues.push({ x: item.x, value: parsePercentage(item.str) });
-      }
-    }
+    // We need: Total Receita Liquida = R$ index 3, %Margem Liquida = % index 1, % Participação = % index 2
+    const totalReceitaLiquida = currencyValues.length >= 4 ? currencyValues[3] : 
+                                 currencyValues.length >= 3 ? currencyValues[2] : 0;
+    const margemLiquida = percentValues.length >= 2 ? percentValues[1] : 
+                          percentValues.length >= 1 ? percentValues[0] : 0;
+    const participacao = percentValues.length >= 3 ? percentValues[2] : 
+                         percentValues.length >= 2 ? percentValues[percentValues.length - 1] : 0;
     
-    // Total Receita Liquida is usually the 5th R$ value (index 4)
-    // %Margem Liquida is usually the 3rd percentage (index 2) 
-    // % Participação is the last percentage
-    
-    const totalReceitaLiquida = rValues.length >= 5 ? rValues[4].value : 
-                                rValues.length >= 4 ? rValues[3].value : 0;
-    const margemLiquida = pctValues.length >= 3 ? pctValues[2].value :
-                          pctValues.length >= 2 ? pctValues[1].value : 0;
-    const participacao = pctValues.length >= 4 ? pctValues[3].value :
-                         pctValues.length >= 3 ? pctValues[pctValues.length - 1].value : 0;
-    
-    if (totalReceitaLiquida > 0 || margemLiquida > 0) {
+    if (totalReceitaLiquida > 0) {
       results.push({
         productName: mappedName,
         totalReceitaLiquida,
         margemLiquida,
         participacao,
       });
-    }
-  }
-  
-  return results;
-}
-
-function extractFallback(rows: Map<number, TextItem[]>): PdfExtractedData[] {
-  const results: PdfExtractedData[] = [];
-  
-  for (const [, items] of rows) {
-    const fullText = items.map(i => i.str).join(' ');
-    const rawName = fullText.replace(/\s*\(\d+\)\s*/, ' ').trim();
-    const mappedName = matchPdfNameToProductLine(rawName);
-    
-    if (!mappedName || results.find(r => r.productName === mappedName)) continue;
-    
-    const amounts = fullText.match(/R\$\s*[\d.,]+/g) || [];
-    const percentages = fullText.match(/[\d.,]+%/g) || [];
-    
-    if (amounts.length >= 4 && percentages.length >= 2) {
-      results.push({
-        productName: mappedName,
-        totalReceitaLiquida: parseBrNumber(amounts[4] || amounts[3] || '0'),
-        margemLiquida: parsePercentage(percentages[percentages.length - 2] || '0'),
-        participacao: parsePercentage(percentages[percentages.length - 1] || '0'),
-      });
-    }
-  }
-  
-  return results;
-}
-
-// Parse standard decimal numbers (e.g., 468735.22)
-function parseStandardNumber(str: string): number {
-  if (!str) return 0;
-  const clean = str.replace(/[^\d.-]/g, '').trim();
-  const num = parseFloat(clean);
-  return isNaN(num) ? 0 : num;
-}
-
-// Manual data entry - parse from a text table format
-// Format: NAME;RECEITA_LIQUIDA;MARGEM%;PARTICIPACAO%
-// Uses standard decimal format (dot as decimal separator)
-export function parseManualData(text: string): PdfExtractedData[] {
-  const results: PdfExtractedData[] = [];
-  const lines = text.split('\n').filter(l => l.trim());
-  
-  for (const line of lines) {
-    const parts = line.split(/[;\t|]/).map(p => p.trim());
-    if (parts.length >= 4) {
-      const name = matchPdfNameToProductLine(parts[0]);
-      if (name) {
-        results.push({
-          productName: name,
-          totalReceitaLiquida: parseStandardNumber(parts[1]),
-          margemLiquida: parseStandardNumber(parts[2]),
-          participacao: parseStandardNumber(parts[3]),
-        });
-      }
     }
   }
   
