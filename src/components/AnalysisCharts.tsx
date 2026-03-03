@@ -26,10 +26,10 @@ const PIE_COLORS = [
   'hsl(0, 60%, 55%)',
 ];
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = React.forwardRef<HTMLDivElement, any>(({ active, payload, label }, ref) => {
   if (!active || !payload) return null;
   return (
-    <div className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
+    <div ref={ref} className="bg-card border border-border rounded-lg p-3 shadow-lg text-sm">
       <p className="font-medium mb-1">{label}</p>
       {payload.map((entry: any, i: number) => (
         <p key={i} style={{ color: entry.color }} className="font-mono text-xs">
@@ -40,7 +40,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       ))}
     </div>
   );
-};
+});
 
 const AnalysisCharts: React.FC<AnalysisChartsProps> = ({ data, type }) => {
   if (type === 'sales') {
