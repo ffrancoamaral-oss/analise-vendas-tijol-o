@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BarChart3, PieChart, History, Save } from 'lucide-react';
+import { BarChart3, PieChart, History, Save, FileDown } from 'lucide-react';
+import { exportSalesPdf, exportMarginsPdf } from '@/utils/pdfExport';
 import type { AnalysisData, EvaluationType, PdfExtractedData, DateConfig } from '@/types/analysis';
 import { EVALUATION_LABELS } from '@/types/analysis';
 import { DEFAULT_PRODUCT_LINES } from '@/data/productLines';
@@ -275,12 +276,30 @@ const AnalysisDashboard: React.FC = () => {
         {/* Tab Content */}
         {activeTab === 'sales' && (
           <>
+            <div className="flex justify-end">
+              <button
+                onClick={() => exportSalesPdf(data)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:bg-secondary/80 transition-colors"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </button>
+            </div>
             <AnalysisCharts data={data} type="sales" />
             <SalesAnalysis data={data} onGrossRevenueChange={handleGrossRevenueChange} />
           </>
         )}
         {activeTab === 'margins' && (
           <>
+            <div className="flex justify-end">
+              <button
+                onClick={() => exportMarginsPdf(data)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:bg-secondary/80 transition-colors"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </button>
+            </div>
             <AnalysisCharts data={data} type="margins" />
             <MarginAnalysis
               data={data}
