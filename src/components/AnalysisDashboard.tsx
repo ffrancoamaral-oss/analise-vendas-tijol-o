@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BarChart3, PieChart, History, Save } from 'lucide-react';
+import { BarChart3, PieChart, History, Save, FileDown } from 'lucide-react';
+import { exportSalesPdf, exportMarginsPdf } from '@/utils/pdfExport';
 import type { AnalysisData, EvaluationType, PdfExtractedData, DateConfig } from '@/types/analysis';
 import { EVALUATION_LABELS } from '@/types/analysis';
 import { DEFAULT_PRODUCT_LINES } from '@/data/productLines';
