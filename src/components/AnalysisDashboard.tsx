@@ -276,12 +276,30 @@ const AnalysisDashboard: React.FC = () => {
         {/* Tab Content */}
         {activeTab === 'sales' && (
           <>
+            <div className="flex justify-end">
+              <button
+                onClick={() => exportSalesPdf(data)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:bg-secondary/80 transition-colors"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </button>
+            </div>
             <AnalysisCharts data={data} type="sales" />
             <SalesAnalysis data={data} onGrossRevenueChange={handleGrossRevenueChange} />
           </>
         )}
         {activeTab === 'margins' && (
           <>
+            <div className="flex justify-end">
+              <button
+                onClick={() => exportMarginsPdf(data)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium text-sm hover:bg-secondary/80 transition-colors"
+              >
+                <FileDown className="h-4 w-4" />
+                Exportar PDF
+              </button>
+            </div>
             <AnalysisCharts data={data} type="margins" />
             <MarginAnalysis
               data={data}
