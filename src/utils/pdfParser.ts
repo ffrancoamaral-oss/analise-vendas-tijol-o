@@ -135,18 +135,25 @@ function extractProductData(lines: string[]): PdfExtractedData[] {
     const percentMatches = line.match(/[\d]+[.,][\d]+%/g) || [];
     const percentValues = percentMatches.map(parseBrPercent);
     
-    // We need: Total Receita Liquida = R$ index 3, %Margem Liquida = % index 1, % Participação = % index 2
-    const totalReceitaLiquida = currencyValues.length >= 4 ? currencyValues[3] : 
+    // We need:
+    //   Total Receita Liquida = R$ index 3
+    //   Lucro Lqd $           = R$ index 4
+    //   %Margem Liquida       = % index 1
+    //   % Participação        = % index 2
+    const totalReceitaLiquida = currencyValues.length >= 4 ? currencyValues[3] :
                                  currencyValues.length >= 3 ? currencyValues[2] : 0;
-    const margemLiquida = percentValues.length >= 2 ? percentValues[1] : 
+    const lucroLiquido = currencyValues.length >= 5 ? currencyValues[4] :
+                         currencyValues.length >= 4 ? currencyValues[3] - (currencyValues[0] || 0) : 0;
+    const margemLiquida = percentValues.length >= 2 ? percentValues[1] :
                           percentValues.length >= 1 ? percentValues[0] : 0;
-    const participacao = percentValues.length >= 3 ? percentValues[2] : 
+    const participacao = percentValues.length >= 3 ? percentValues[2] :
                          percentValues.length >= 2 ? percentValues[percentValues.length - 1] : 0;
-    
+
     if (totalReceitaLiquida > 0) {
       results.push({
         productName: mappedName,
         totalReceitaLiquida,
+        lucroLiquido,
         margemLiquida,
         participacao,
       });

@@ -16,6 +16,7 @@ export interface ProductLineData {
   participationTarget: number; // PART. PREVISTA (editable)
   marginRealized: number; // MARGEM REALIZADA (from PDF - %Margem Liquida)
   participationRealized: number; // PART. REALIZADA (from PDF - % Participação)
+  lucroLiquido?: number; // LUCRO LÍQUIDO R$ (from PDF - Lucro Lqd $)
 }
 
 export interface AnalysisData {
@@ -31,6 +32,7 @@ export interface AnalysisData {
 export interface PdfExtractedData {
   productName: string;
   totalReceitaLiquida: number;
+  lucroLiquido: number; // R$ Lucro Líquido (Lucro Lqd $)
   margemLiquida: number; // percentage
   participacao: number; // percentage
 }

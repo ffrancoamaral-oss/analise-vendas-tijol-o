@@ -53,19 +53,29 @@ export function getMarginByCurve(data: AnalysisData) {
 export function getTotals(data: AnalysisData) {
   let totalTarget = 0;
   let totalRealized = 0;
+  let totalLucroLiquido = 0;
   let aboveMeta = 0;
   let belowMeta = 0;
 
   for (const line of data.productLines) {
     totalTarget += line.salesTarget;
     totalRealized += line.salesRealized;
+    // Use lucroLiquido from PDF when available; otherwise derive from margin %
+    const lucro = typeof line.lucroLiquido === 'number' && line.lucroLiquido !== 0
+      ? line.lucroLiquido
+      : (line.marginRealized / 100) * line.salesRealized;
+    totalLucroLiquido += lucro;
     if (line.salesRealized >= line.salesTarget && line.salesTarget > 0) aboveMeta++;
     else if (line.salesTarget > 0) belowMeta++;
   }
 
+  const marginPercent = totalRealized > 0 ? (totalLucroLiquido / totalRealized) * 100 : 0;
+
   return {
     totalTarget,
     totalRealized,
+    totalLucroLiquido,
+    marginPercent,
     performance: totalTarget > 0 ? (totalRealized / totalTarget) * 100 : 0,
     aboveMeta,
     belowMeta,
