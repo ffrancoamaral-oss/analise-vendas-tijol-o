@@ -101,6 +101,7 @@ const AnalysisDashboard: React.FC = () => {
             salesRealized: pdfLine.totalReceitaLiquida,
             marginRealized: pdfLine.margemLiquida,
             participationRealized: pdfLine.participacao,
+            lucroLiquido: pdfLine.lucroLiquido,
           };
         }
         return pl;
