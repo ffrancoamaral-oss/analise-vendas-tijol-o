@@ -27,7 +27,10 @@ function addHeader(doc: jsPDF, title: string, data: AnalysisData) {
   const info = `${evalLabel} | Mês: ${data.month} | Período: ${data.dateConfig.startDate || '—'} a ${data.dateConfig.endDate || '—'}`;
   doc.text(info, pageW - 14, 18, { align: 'right' });
 
-  const days = `Dias úteis: ${data.dateConfig.workingDaysUsed}/${data.dateConfig.totalWorkingDays} | Dias do mês: ${data.dateConfig.totalMonthDays}`;
+  const total = data.dateConfig.totalWorkingDays || 0;
+  const used = data.dateConfig.workingDaysUsed || 0;
+  const pct = total > 0 ? (used / total) * 100 : 0;
+  const days = `Dias úteis: ${used}/${total} (${formatPercent(pct)}) | Dias do mês: ${data.dateConfig.totalMonthDays}`;
   doc.text(days, pageW - 14, 25, { align: 'right' });
 }
 
