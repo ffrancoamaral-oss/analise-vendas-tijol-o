@@ -60,8 +60,7 @@ export function getTotals(data: AnalysisData) {
   for (const line of data.productLines) {
     totalTarget += line.salesTarget;
     totalRealized += line.salesRealized;
-    // Use lucroLiquido from PDF when available; otherwise derive from margin %
-    const lucro = typeof line.lucroLiquido === 'number' && line.lucroLiquido !== 0
+    const lucro = typeof line.lucroLiquido === 'number'
       ? line.lucroLiquido
       : (line.marginRealized / 100) * line.salesRealized;
     totalLucroLiquido += lucro;
@@ -83,14 +82,16 @@ export function getTotals(data: AnalysisData) {
 }
 
 export function getAverageMargin(data: AnalysisData, type: 'target' | 'realized') {
+  if (type === 'realized') {
+    const { marginPercent } = getTotals(data);
+    return marginPercent;
+  }
+
   let sumWeighted = 0;
   for (const line of data.productLines) {
-    if (type === 'target') {
-      sumWeighted += calculateWeightedAverage(line.marginTarget, line.participationTarget);
-    } else {
-      sumWeighted += calculateWeightedAverage(line.marginRealized, line.participationRealized);
-    }
+    sumWeighted += calculateWeightedAverage(line.marginTarget, line.participationTarget);
   }
+
   return sumWeighted;
 }
 
