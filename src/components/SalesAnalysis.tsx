@@ -121,7 +121,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               <td className={`text-right ${totals.performance >= 100 ? 'value-positive' : 'value-negative'}`}>
                 {formatPercent(totals.performance)}
               </td>
-              <td></td>
+              <td className="text-right value-positive">{formatPercent(totals.marginPercent)}</td>
               <td></td>
             </tr>
           </tbody>
