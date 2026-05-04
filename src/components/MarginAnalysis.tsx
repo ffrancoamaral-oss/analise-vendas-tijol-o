@@ -104,10 +104,22 @@ const MarginAnalysis: React.FC<MarginAnalysisProps> = ({
                   <td className="text-right font-semibold">{formatPercent(line.marginRealized)}</td>
                   <td className="text-right font-semibold">{formatPercent(line.participationRealized)}</td>
                   <td className="text-right border-r border-border">{formatPercent(wpRealized)}</td>
-                  <td className={`text-right font-semibold ${marginResult >= 0 ? 'value-positive' : 'value-negative'}`}>
+                  <td
+                    className="text-right font-semibold"
+                    style={{
+                      backgroundColor: marginResult >= 0 ? 'hsl(217 91% 60% / 0.25)' : 'hsl(0 84% 60% / 0.25)',
+                      color: marginResult >= 0 ? 'hsl(217 91% 75%)' : 'hsl(0 84% 75%)',
+                    }}
+                  >
                     {formatPercent(marginResult)}
                   </td>
-                  <td className={`text-right font-semibold ${partResult >= 0 ? 'value-positive' : 'value-negative'}`}>
+                  <td
+                    className="text-right font-semibold"
+                    style={{
+                      backgroundColor: partResult >= 0 ? 'hsl(142 71% 45% / 0.25)' : 'hsl(48 96% 53% / 0.25)',
+                      color: partResult >= 0 ? 'hsl(142 71% 65%)' : 'hsl(48 96% 70%)',
+                    }}
+                  >
                     {formatPercent(partResult)}
                   </td>
                 </tr>
