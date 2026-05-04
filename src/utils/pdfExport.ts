@@ -116,8 +116,12 @@ export function exportSalesPdf(data: AnalysisData) {
 
   const totals = getTotals(data);
 
+  const totalWD = data.dateConfig.totalWorkingDays || 0;
+  const usedWD = data.dateConfig.workingDaysUsed || 0;
+  const wdPct = totalWD > 0 ? (usedWD / totalWD) * 100 : 0;
+
   drawKpiCards(doc, 33, [
-    { label: 'Faturamento Bruto', value: formatCurrency(data.grossRevenue) },
+    { label: 'Dias Úteis Utilizados', value: `${usedWD}/${totalWD} (${formatPercent(wdPct)})` },
     { label: 'Meta Total', value: formatCurrency(totals.totalTarget) },
     { label: 'Realizado', value: formatCurrency(totals.totalRealized) },
     {
