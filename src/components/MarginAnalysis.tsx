@@ -108,7 +108,7 @@ const MarginAnalysis: React.FC<MarginAnalysisProps> = ({
                     className="text-right font-semibold"
                     style={{
                       backgroundColor: marginResult >= 0 ? 'hsl(217 91% 60% / 0.25)' : 'hsl(0 84% 60% / 0.25)',
-                      color: marginResult >= 0 ? 'hsl(217 91% 75%)' : 'hsl(0 84% 75%)',
+                      color: '#000',
                     }}
                   >
                     {formatPercent(marginResult)}
@@ -117,7 +117,7 @@ const MarginAnalysis: React.FC<MarginAnalysisProps> = ({
                     className="text-right font-semibold"
                     style={{
                       backgroundColor: partResult >= 0 ? 'hsl(142 71% 45% / 0.25)' : 'hsl(48 96% 53% / 0.25)',
-                      color: partResult >= 0 ? 'hsl(142 71% 65%)' : 'hsl(48 96% 70%)',
+                      color: '#000',
                     }}
                   >
                     {formatPercent(partResult)}
