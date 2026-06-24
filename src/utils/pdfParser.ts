@@ -1,3 +1,30 @@
+import * as pdfjsLib from 'pdfjs-dist';
+import type { TextItem } from 'pdfjs-dist/types/src/display/api';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+
+async function extractPDFText(arrayBuffer: ArrayBuffer): Promise<string> {
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useSystemFonts: true }).promise;
+  let fullText = '';
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item) => (item as TextItem).str || '')
+      .join(' ');
+    fullText += pageText + '\n';
+  }
+
+  return fullText;
+}
+
+export async function parsePdfFile(file: File): Promise<any[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const text = await extractPDFText(arrayBuffer);
+  return parseTijolaoPDFText(text);
+}
+
 export function parseTijolaoPDFText(pdfText: string): any[] {
   const lines = pdfText.split("\n");
   const items: any[] = [];
