@@ -80,8 +80,11 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
           </div>
           <div className="stat-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Margem Líquida Total</p>
-            <p className="text-2xl font-bold font-mono mt-1 value-positive">{formatPercent(totals.marginPercent)}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(totals.totalLucroLiquido)} / {formatCurrency(totals.totalRealized)}</p>
+            <p className={`text-2xl font-bold font-mono mt-1 flex items-center gap-1 ${marginOnTrack ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
+              {marginOnTrack ? <ArrowUp className="w-5 h-5" /> : <ArrowDown className="w-5 h-5" />}
+              {formatPercent(totals.marginPercent)}
+            </p>
+            <p className="text-xs text-muted-foreground">Meta ponderada: {formatPercent(marginTargetAvg)}</p>
           </div>
         </div>
       </div>
