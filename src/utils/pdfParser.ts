@@ -1,40 +1,42 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+// Correção cirúrgica: Força o uso do worker via CDN para evitar crash no ambiente Lovable
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-async function extractPDFText(arrayBuffer: ArrayBuffer): Promise<string> {
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useSystemFonts: true }).promise;
-  let fullText = '';
+export async function extractTextFromPdf(file: File): Promise<string> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    try {
+    // Carrega o documento forçando ArrayBuffer e desativando renderização de fontes nativas que causam o erro de corrupção
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      disableFontFace: true,
+    });
+
+    const pdf = await loadingTask.promise;
+    let fullText = '';
+
+    for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item) => {
-          try {
-            return ((item as TextItem).str || '').replace(/\r\n/g, '\n');
-          } catch (lineErr) {
-            console.error(`[pdfParser] Falha ao ler item de texto na página ${i}:`, lineErr);
-            return '';
-          }
-        })
-        .join(' ');
-      fullText += pageText + '\n';
-    } catch (pageErr) {
-      console.error(`[pdfParser] Falha ao processar página ${i}, continuando:`, pageErr);
-      fullText += '\n';
-    }
-  }
+      const content = await page.getTextContent();
 
-  return fullText.replace(/\r\n/g, '\n');
+      // Mapeia os itens mantendo as quebras de linha (EOL) necessárias para o parser
+      const strings = content.items.map((item: any) => item.str + (item.hasEOL ? '\n' : ''));
+      fullText += strings.join(' ') + '\n';
+    }
+
+    return fullText;
+  } catch (error) {
+    console.error('Erro de leitura bloqueado:', error);
+    throw new Error('Falha contornada. O documento não pôde ser lido. Tente novamente.');
+  }
 }
 
 export async function parsePdfFile(file: File): Promise<any[]> {
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const text = await extractPDFText(arrayBuffer);
+    const text = await extractTextFromPdf(file);
     const normalized = text.replace(/\r\n/g, '\n');
     return parseTijolaoPDFText(normalized);
   } catch (err) {
