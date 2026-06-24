@@ -112,53 +112,63 @@ function groupIntoRows(items: TextItem[], tolerance: number): Map<number, TextIt
  */
 function extractProductData(lines: string[]): PdfExtractedData[] {
   const results: PdfExtractedData[] = [];
-  
+
   for (const line of lines) {
     // Skip header/total lines
     const upper = line.toUpperCase();
     if (upper.includes('TOTAL GERAL') || upper.includes('GRUPOS') || upper.includes('TOTAL CUSTO')) continue;
-    
-    // Try to find a product name - look for pattern: NAME (CODE)
-    const productMatch = line.match(/([A-ZÁÉÍÓÚÃÕÇ\s\/]+?)\s*\(\d+\)/i);
-    if (!productMatch) continue;
-    
-    const rawName = productMatch[1].trim();
-    const mappedName = matchPdfNameToProductLine(rawName);
-    if (!mappedName) continue;
-    if (results.find(r => r.productName === mappedName)) continue;
-    
-    // Extract all R$ amounts from the line
+
+    // Capture the full name section before any R$ value (preserves possible stacked names)
+    const nameSection = line.split(/R\$/)[0].trim();
+    if (!nameSection || !nameSection.match(/[A-Z]/i)) continue;
+
+    const rawNames = nameSection.includes('\n')
+      ? nameSection.split('\n').map((n) => n.trim()).filter(Boolean)
+      : [nameSection];
+
+    // Extract all R$ amounts and percentages from the line
     const currencyMatches = line.match(/R\$\s*[\d.,]+/g) || [];
     const currencyValues = currencyMatches.map(parseBrCurrency);
-    
-    // Extract all percentage values from the line
+
     const percentMatches = line.match(/[\d]+[.,][\d]+%/g) || [];
     const percentValues = percentMatches.map(parseBrPercent);
-    
-    // We need:
-    //   Total Receita Liquida = R$ index 3
-    //   Lucro Lqd $           = R$ index 4
-    //   %Margem Liquida       = % index 1
-    //   % Participação        = % index 2
-    const totalReceitaLiquida = currencyValues.length >= 4 ? currencyValues[3] :
-                                 currencyValues.length >= 3 ? currencyValues[2] : 0;
-    const lucroLiquido = currencyValues.length >= 5 ? currencyValues[4] :
-                         currencyValues.length >= 4 ? currencyValues[3] - (currencyValues[0] || 0) : 0;
-    const margemLiquida = percentValues.length >= 2 ? percentValues[1] :
-                          percentValues.length >= 1 ? percentValues[0] : 0;
-    const participacao = percentValues.length >= 3 ? percentValues[2] :
-                         percentValues.length >= 2 ? percentValues[percentValues.length - 1] : 0;
 
-    if (totalReceitaLiquida > 0) {
-      results.push({
-        productName: mappedName,
-        totalReceitaLiquida,
-        lucroLiquido,
-        margemLiquida,
-        participacao,
-      });
+    // When names are stacked on the same line, split the values evenly between them
+    const groupCount = rawNames.length;
+    const currencyGroupSize = Math.max(1, Math.ceil(currencyValues.length / groupCount));
+    const percentGroupSize = Math.max(1, Math.ceil(percentValues.length / groupCount));
+
+    for (let idx = 0; idx < rawNames.length; idx++) {
+      const rawName = rawNames[idx];
+      const mappedName = matchPdfNameToProductLine(rawName);
+      if (!mappedName || results.find((r) => r.productName === mappedName)) continue;
+
+      const cSlice = currencyValues.slice(idx * currencyGroupSize, (idx + 1) * currencyGroupSize);
+      const pSlice = percentValues.slice(idx * percentGroupSize, (idx + 1) * percentGroupSize);
+
+      // Column mapping (0-indexed):
+      // R$ values: [0]=Total Custo, [1]=Total Receita Bruta, [2]=Lucro Bruto, [3]=Total Receita Liquida, [4]=Lucro Lqd
+      // % values: [0]=% Margem Bruta, [1]=%Margem Liquida, [2]=% Participação
+      const totalReceitaLiquida = cSlice.length >= 4 ? cSlice[3] :
+                                   cSlice.length >= 3 ? cSlice[2] : 0;
+      const lucroLiquido = cSlice.length >= 5 ? cSlice[4] :
+                           cSlice.length >= 4 ? cSlice[3] - (cSlice[0] || 0) : 0;
+      const margemLiquida = pSlice.length >= 2 ? pSlice[1] :
+                            pSlice.length >= 1 ? pSlice[0] : 0;
+      const participacao = pSlice.length >= 3 ? pSlice[2] :
+                           pSlice.length >= 2 ? pSlice[pSlice.length - 1] : 0;
+
+      if (totalReceitaLiquida > 0) {
+        results.push({
+          productName: mappedName,
+          totalReceitaLiquida,
+          lucroLiquido,
+          margemLiquida,
+          participacao,
+        });
+      }
     }
   }
-  
+
   return results;
 }
