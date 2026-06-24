@@ -58,44 +58,6 @@ export function parseTijolaoPDFText(pdfText: string): any[] {
   const cleanPct = (val: string) =>
     parseFloat((val || '').replace('%', '').replace(',', '.').trim()) || 0;
 
-  // Interceptador cirúrgico: separa um item cujo nome/colunas vêm fundidos por \n
-  const pushSplitOrSingle = (name: string, cols: string[]) => {
-    const namePieces = name.split('\n').map((s) => s.trim()).filter(Boolean);
-
-    const hasTijolos = namePieces.some((n) => /TIJOLOS/i.test(n));
-    const hasTelhas = namePieces.some((n) => /TELHAS\s+DE\s+FIBROCIMENTO/i.test(n));
-
-    if (namePieces.length > 1 && hasTijolos && hasTelhas) {
-      // Divide cada coluna pelo \n também
-      const splitCols = cols.map((c) => (c || '').split('\n').map((s) => s.trim()));
-
-      namePieces.forEach((groupName, idx) => {
-        const pick = (colIdx: number) => splitCols[colIdx]?.[idx] ?? splitCols[colIdx]?.[0] ?? '';
-        items.push({
-          name: groupName,
-          cost: cleanVal(pick(1)),
-          grossRevenue: cleanVal(pick(2)),
-          netRevenue: cleanVal(pick(5)),
-          netProfit: cleanVal(pick(6)),
-          marginRealized: cleanPct(pick(7)),
-        });
-      });
-      return;
-    }
-
-    const flatName = namePieces.join(' ').trim() || name.trim();
-    if (!flatName || flatName === 'GRUPOS') return;
-
-    items.push({
-      name: flatName,
-      cost: cleanVal(cols[1]),
-      grossRevenue: cleanVal(cols[2]),
-      netRevenue: cleanVal(cols[5]),
-      netProfit: cleanVal(cols[6]),
-      marginRealized: cleanPct(cols[7]),
-    });
-  };
-
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
@@ -143,10 +105,64 @@ export function parseTijolaoPDFText(pdfText: string): any[] {
         });
         stackedGroups = [];
       } else {
-        pushSplitOrSingle(rawCols[0], rawCols);
+        const name = rawCols[0];
+        if (!name || name === 'GRUPOS') continue;
+
+        items.push({
+          name,
+          cost: cleanVal(rawCols[1]),
+          grossRevenue: cleanVal(rawCols[2]),
+          netRevenue: cleanVal(rawCols[5]),
+          netProfit: cleanVal(rawCols[6]),
+          marginRealized: cleanPct(rawCols[7]),
+        });
       }
     }
   }
 
-  return items;
+  // Correção cirúrgica: se um item tiver "TIJOLOS (0568)" e "TELHAS DE FIBROCIMENTO (0055)"
+  // fundidos na descrição, dividir os valores (1º = Tijolos, 2º = Telhas).
+  const splitNumbers = (raw: any): number[] => {
+    if (typeof raw === 'number') return [raw];
+    const matches = String(raw ?? '')
+      .match(/-?\d{1,3}(?:\.\d{3})*(?:,\d+)?|-?\d+(?:[.,]\d+)?/g);
+    if (!matches) return [];
+    return matches.map((m) => cleanVal(m));
+  };
+
+  const result: any[] = [];
+  for (const item of items) {
+    const hasTijolos = /TIJOLOS\s*\(?0?568\)?/i.test(item.name);
+    const hasTelhas = /TELHAS\s+DE\s+FIBROCIMENTO\s*\(?0?055\)?/i.test(item.name);
+
+    if (hasTijolos && hasTelhas) {
+      const pick = (n: number[], idx: number) => n[idx] ?? n[0] ?? 0;
+      const cost = splitNumbers(item.cost);
+      const gross = splitNumbers(item.grossRevenue);
+      const net = splitNumbers(item.netRevenue);
+      const profit = splitNumbers(item.netProfit);
+      const margin = splitNumbers(item.marginRealized);
+
+      result.push({
+        name: 'TIJOLOS (0568)',
+        cost: pick(cost, 0),
+        grossRevenue: pick(gross, 0),
+        netRevenue: pick(net, 0),
+        netProfit: pick(profit, 0),
+        marginRealized: pick(margin, 0),
+      });
+      result.push({
+        name: 'TELHAS DE FIBROCIMENTO (0055)',
+        cost: pick(cost, 1),
+        grossRevenue: pick(gross, 1),
+        netRevenue: pick(net, 1),
+        netProfit: pick(profit, 1),
+        marginRealized: pick(margin, 1),
+      });
+    } else {
+      result.push(item);
+    }
+  }
+
+  return result;
 }
