@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { AnalysisData } from '@/types/analysis';
 import {
   calculatePerformance,
@@ -6,6 +7,7 @@ import {
   getCurveTotals,
   getMarginByCurve,
   getTotals,
+  getAverageMargin,
   formatCurrency,
   formatPercent,
 } from '@/utils/calculations';
@@ -19,6 +21,9 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
   const totals = getTotals(data);
   const curveTotals = getCurveTotals(data);
   const marginByCurve = getMarginByCurve(data);
+  const marginTargetAvg = getAverageMargin(data, 'target');
+  const marginOnTrack = totals.marginPercent >= marginTargetAvg;
+  const salesOnTrack = totals.performance >= 100;
   const workingDaysPct = data.dateConfig.totalWorkingDays > 0
     ? ((data.dateConfig.workingDaysUsed / data.dateConfig.totalWorkingDays) * 100)
     : 0;
@@ -34,7 +39,8 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
           <div className="stat-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Vendas Realizadas vs Meta</p>
             <p className="text-2xl font-bold font-mono mt-1">{formatCurrency(totals.totalRealized)}</p>
-            <p className={`text-xs font-semibold mt-1 ${totals.performance >= 100 ? 'value-positive' : 'value-negative'}`}>
+            <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${salesOnTrack ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
+              {salesOnTrack ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
               {formatPercent(totals.performance)} da meta
             </p>
           </div>
@@ -74,8 +80,11 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
           </div>
           <div className="stat-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Margem Líquida Total</p>
-            <p className="text-2xl font-bold font-mono mt-1 value-positive">{formatPercent(totals.marginPercent)}</p>
-            <p className="text-xs text-muted-foreground">{formatCurrency(totals.totalLucroLiquido)} / {formatCurrency(totals.totalRealized)}</p>
+            <p className={`text-2xl font-bold font-mono mt-1 flex items-center gap-1 ${marginOnTrack ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
+              {marginOnTrack ? <ArrowUp className="w-5 h-5" /> : <ArrowDown className="w-5 h-5" />}
+              {formatPercent(totals.marginPercent)}
+            </p>
+            <p className="text-xs text-muted-foreground">Meta ponderada: {formatPercent(marginTargetAvg)}</p>
           </div>
         </div>
       </div>
