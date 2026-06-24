@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { AnalysisData } from '@/types/analysis';
 import {
   calculatePerformance,
@@ -6,6 +7,7 @@ import {
   getCurveTotals,
   getMarginByCurve,
   getTotals,
+  getAverageMargin,
   formatCurrency,
   formatPercent,
 } from '@/utils/calculations';
