@@ -112,34 +112,12 @@ function groupIntoRows(items: TextItem[], tolerance: number): Map<number, TextIt
  */
 function extractProductData(lines: string[]): PdfExtractedData[] {
   const results: PdfExtractedData[] = [];
-  
-  for (const line of lines) {
-    // Skip header/total lines
-    const upper = line.toUpperCase();
-    if (upper.includes('TOTAL GERAL') || upper.includes('GRUPOS') || upper.includes('TOTAL CUSTO')) continue;
-    
-    // Try to find a product name - look for pattern: NAME (CODE)
-    const productMatch = line.match(/([A-ZÁÉÍÓÚÃÕÇ\s\/]+?)\s*\(\d+\)/i);
-    if (!productMatch) continue;
-    
-    const rawName = productMatch[1].trim();
-    const mappedName = matchPdfNameToProductLine(rawName);
-    if (!mappedName) continue;
-    if (results.find(r => r.productName === mappedName)) continue;
-    
-    // Extract all R$ amounts from the line
-    const currencyMatches = line.match(/R\$\s*[\d.,]+/g) || [];
-    const currencyValues = currencyMatches.map(parseBrCurrency);
-    
-    // Extract all percentage values from the line
-    const percentMatches = line.match(/[\d]+[.,][\d]+%/g) || [];
-    const percentValues = percentMatches.map(parseBrPercent);
-    
-    // We need:
-    //   Total Receita Liquida = R$ index 3
-    //   Lucro Lqd $           = R$ index 4
-    //   %Margem Liquida       = % index 1
-    //   % Participação        = % index 2
+  const pendingNames: string[] = []; // names found on rows without values (stacked layout)
+
+  const productRegex = /([A-ZÁÉÍÓÚÃÕÇ\s\/]+?)\s*\(\d+\)/gi;
+
+  const pushResult = (mappedName: string, currencyValues: number[], percentValues: number[]) => {
+    if (results.find(r => r.productName === mappedName)) return;
     const totalReceitaLiquida = currencyValues.length >= 4 ? currencyValues[3] :
                                  currencyValues.length >= 3 ? currencyValues[2] : 0;
     const lucroLiquido = currencyValues.length >= 5 ? currencyValues[4] :
@@ -148,17 +126,59 @@ function extractProductData(lines: string[]): PdfExtractedData[] {
                           percentValues.length >= 1 ? percentValues[0] : 0;
     const participacao = percentValues.length >= 3 ? percentValues[2] :
                          percentValues.length >= 2 ? percentValues[percentValues.length - 1] : 0;
-
     if (totalReceitaLiquida > 0) {
-      results.push({
-        productName: mappedName,
-        totalReceitaLiquida,
-        lucroLiquido,
-        margemLiquida,
-        participacao,
-      });
+      results.push({ productName: mappedName, totalReceitaLiquida, lucroLiquido, margemLiquida, participacao });
+    }
+  };
+
+  for (const line of lines) {
+    const upper = line.toUpperCase();
+    if (upper.includes('TOTAL GERAL') || upper.includes('GRUPOS') || upper.includes('TOTAL CUSTO')) continue;
+
+    // Collect ALL product names in this row (stacked headers can have multiple)
+    const namesInLine: string[] = [];
+    let m: RegExpExecArray | null;
+    productRegex.lastIndex = 0;
+    while ((m = productRegex.exec(line)) !== null) {
+      const mapped = matchPdfNameToProductLine(m[1].trim());
+      if (mapped) namesInLine.push(mapped);
+    }
+
+    const currencyMatches = line.match(/R\$\s*[\d.,]+/g) || [];
+    const percentMatches = line.match(/[\d]+[.,][\d]+%/g) || [];
+    const hasValues = currencyMatches.length >= 3;
+
+    if (namesInLine.length > 0 && !hasValues) {
+      // Stacked header rows — defer until values arrive
+      pendingNames.push(...namesInLine);
+      continue;
+    }
+
+    if (hasValues) {
+      // How many product value-blocks fit in this row? Each block = ~5 currency values
+      const valueGroups = Math.max(1, Math.floor(currencyMatches.length / 5));
+      const currencyValues = currencyMatches.map(parseBrCurrency);
+      const percentValues = percentMatches.map(parseBrPercent);
+
+      // Build the ordered list of names to assign to value groups in this row
+      const namesQueue: string[] = [];
+      // First, drain pending names that belong above this values row
+      while (pendingNames.length > 0 && namesQueue.length < valueGroups) {
+        namesQueue.push(pendingNames.shift()!);
+      }
+      // Then any names embedded in this same line
+      for (const n of namesInLine) {
+        if (namesQueue.length < valueGroups) namesQueue.push(n);
+        else pendingNames.push(n);
+      }
+
+      for (let i = 0; i < namesQueue.length; i++) {
+        const slice = currencyValues.slice(i * 5, i * 5 + 5);
+        const pSlice = percentValues.slice(i * 3, i * 3 + 3);
+        pushResult(namesQueue[i], slice, pSlice);
+      }
     }
   }
-  
+
   return results;
 }
