@@ -103,7 +103,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
             </tr>
           </thead>
           <tbody>
-            {data.productLines.map((line, idx) => {
+            {data?.productLines?.map((line, idx) => {
               const perf = calculatePerformance(line.salesRealized, line.salesTarget);
               const curve = getCurve(line.participationTarget);
               const marginResult = line.marginRealized - line.marginTarget;
