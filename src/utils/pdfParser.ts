@@ -8,22 +8,41 @@ async function extractPDFText(arrayBuffer: ArrayBuffer): Promise<string> {
   let fullText = '';
 
   for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((item) => (item as TextItem).str || '')
-      .join(' ');
-    fullText += pageText + '\n';
+    try {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item) => {
+          try {
+            return ((item as TextItem).str || '').replace(/\r\n/g, '\n');
+          } catch (lineErr) {
+            console.error(`[pdfParser] Falha ao ler item de texto na página ${i}:`, lineErr);
+            return '';
+          }
+        })
+        .join(' ');
+      fullText += pageText + '\n';
+    } catch (pageErr) {
+      console.error(`[pdfParser] Falha ao processar página ${i}, continuando:`, pageErr);
+      fullText += '\n';
+    }
   }
 
-  return fullText;
+  return fullText.replace(/\r\n/g, '\n');
 }
 
 export async function parsePdfFile(file: File): Promise<any[]> {
-  const arrayBuffer = await file.arrayBuffer();
-  const text = await extractPDFText(arrayBuffer);
-  return parseTijolaoPDFText(text);
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const text = await extractPDFText(arrayBuffer);
+    const normalized = text.replace(/\r\n/g, '\n');
+    return parseTijolaoPDFText(normalized);
+  } catch (err) {
+    console.error('[pdfParser] Erro ao extrair texto do PDF:', err);
+    throw new Error('PDF_EXTRACTION_FAILED');
+  }
 }
+
 
 export function parseTijolaoPDFText(pdfText: string): any[] {
   const lines = pdfText.split("\n");
