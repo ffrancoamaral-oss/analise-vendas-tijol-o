@@ -30,7 +30,14 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
         <div className="module-header">
           <h2 className="text-lg font-bold">Relatório de Performance de Vendas por Linha de Produto</h2>
         </div>
-        <div className="p-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="p-6 grid grid-cols-2 md:grid-cols-6 gap-4">
+          <div className="stat-card">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Vendas Realizadas vs Meta</p>
+            <p className="text-2xl font-bold font-mono mt-1">{formatCurrency(totals.totalRealized)}</p>
+            <p className={`text-xs font-semibold mt-1 ${totals.performance >= 100 ? 'value-positive' : 'value-negative'}`}>
+              {formatPercent(totals.performance)} da meta
+            </p>
+          </div>
           <div className="stat-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Dias Úteis Utilizados</p>
             <p className="text-2xl font-bold font-mono mt-1">{data.dateConfig.workingDaysUsed}</p>
