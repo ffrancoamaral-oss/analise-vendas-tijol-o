@@ -1,168 +1,174 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import type { PdfExtractedData } from '@/types/analysis';
+import { matchPdfNameToProductLine } from '@/data/productLines';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+/**
+ * Parse Brazilian number format: R$ 238.066,97 → 238066.97
+ */
+function parseBrCurrency(str: string): number {
+  if (!str) return 0;
+  const clean = str.replace(/R\$\s*/g, '').replace(/\./g, '').replace(',', '.').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+}
 
-async function extractPDFText(file: File): Promise<string> {
+/**
+ * Parse Brazilian percentage format: 48,47% → 48.47
+ */
+function parseBrPercent(str: string): number {
+  if (!str) return 0;
+  const clean = str.replace('%', '').replace(',', '.').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+}
+
+interface TextItem {
+  str: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Main PDF parser - extracts product line data from Rentabilidade PDF
+ * 
+ * PDF Column Order:
+ * GRUPOS | Total Custo | Total Receita Bruta | Lucro Bruto $ | % Margem Bruta | Total Receita Liquida | Lucro Lqd $ | %Margem. Liquida | % Participação
+ * 
+ * We extract: Total Receita Liquida (R$ index 3), %Margem Liquida (% index 1), % Participação (% index 2)
+ */
+export async function parsePdfFile(file: File): Promise<PdfExtractedData[]> {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let fullText = '';
-
+  
+  const allItems: TextItem[] = [];
+  
   for (let i = 1; i <= pdf.numPages; i++) {
-    try {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => {
-          try {
-            return (item.str || '').replace(/\r\n/g, '\n') + (item.hasEOL ? '\n' : '');
-          } catch {
-            return '';
-          }
-        })
-        .join(' ');
-      fullText += pageText + '\n';
-    } catch (pageErr) {
-      console.warn(`[pdfParser] Falha ao ler página ${i}, pulando:`, pageErr);
-      fullText += '\n';
-    }
-  }
-
-  return fullText.replace(/\r\n/g, '\n');
-}
-
-export async function parsePdfFile(file: File): Promise<any[]> {
-  try {
-    const text = await extractPDFText(file);
-    return parseTijolaoPDFText(text);
-  } catch (err) {
-    console.error('[pdfParser] Erro ao extrair texto do PDF:', err);
-    throw new Error('PDF_EXTRACTION_FAILED');
-  }
-}
-
-export function parseTijolaoPDFText(pdfText: string): any[] {
-  const lines = pdfText.split('\n');
-  const items: any[] = [];
-  let stackedGroups: string[] = [];
-
-  const cleanVal = (val: string) =>
-    parseFloat(
-      (val || '')
-        .replace('R$', '')
-        .replace('RS', '')
-        .replace(/\./g, '')
-        .replace(',', '.')
-        .trim()
-    ) || 0;
-  const cleanPct = (val: string) =>
-    parseFloat((val || '').replace('%', '').replace(',', '.').trim()) || 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-
-    if (!line || line.includes('PERÍODO') || line.includes('Total Geral')) continue;
-
-    // 1. Nomes de grupos sequenciais sem dados na mesma linha
-    if (!line.includes('|') && (line.includes('(') || line.match(/[A-Z]{3,}/))) {
-      stackedGroups.push(line);
-      continue;
-    }
-
-    // 2. Linha com delimitadores de colunas
-    if (line.includes('|')) {
-      const rawCols = line.split('|').map((c) => c.trim());
-
-      if (stackedGroups.length > 0) {
-        stackedGroups.forEach((groupName, index) => {
-          const extractValue = (colText: string) => {
-            if (!colText) return 0;
-            const parts = colText
-              .split(/[\n\r]+|\s{2,}/)
-              .map((p) => p.trim())
-              .filter(Boolean);
-            const target = parts[index] || parts[0] || '0';
-            return cleanVal(target);
-          };
-          const extractPercent = (colText: string) => {
-            if (!colText) return 0;
-            const parts = colText
-              .split(/[\n\r]+|\s{2,}/)
-              .map((p) => p.trim())
-              .filter(Boolean);
-            const target = parts[index] || parts[0] || '0';
-            return cleanPct(target);
-          };
-
-          items.push({
-            name: groupName,
-            cost: extractValue(rawCols[1]),
-            grossRevenue: extractValue(rawCols[2]),
-            netRevenue: extractValue(rawCols[5]),
-            netProfit: extractValue(rawCols[6]),
-            marginRealized: extractPercent(rawCols[7]),
-          });
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const items = content.items as Array<{ str: string; transform: number[] }>;
+    
+    for (const item of items) {
+      if (item.str.trim()) {
+        allItems.push({
+          str: item.str.trim(),
+          x: Math.round(item.transform[4]),
+          y: Math.round(item.transform[5]),
         });
-        stackedGroups = [];
-      } else {
-        const name = rawCols[0];
-        if (!name || name === 'GRUPOS') continue;
+      }
+    }
+  }
+  
+  // Group items into rows by Y position (tolerance of 4px)
+  const rows = groupIntoRows(allItems, 4);
+  
+  // Reconstruct each row as a single text line
+  const textLines: string[] = [];
+  const sortedYs = Array.from(rows.keys()).sort((a, b) => b - a); // top to bottom
+  
+  for (const y of sortedYs) {
+    const items = rows.get(y)!;
+    items.sort((a, b) => a.x - b.x);
+    // Join with spaces, preserving separation
+    const line = items.map(i => i.str).join('  ');
+    textLines.push(line);
+  }
+  
+  return extractProductData(textLines);
+}
 
-        items.push({
-          name,
-          cost: cleanVal(rawCols[1]),
-          grossRevenue: cleanVal(rawCols[2]),
-          netRevenue: cleanVal(rawCols[5]),
-          netProfit: cleanVal(rawCols[6]),
-          marginRealized: cleanPct(rawCols[7]),
+function groupIntoRows(items: TextItem[], tolerance: number): Map<number, TextItem[]> {
+  const rows = new Map<number, TextItem[]>();
+  
+  for (const item of items) {
+    let matchedY: number | null = null;
+    for (const key of rows.keys()) {
+      if (Math.abs(key - item.y) <= tolerance) {
+        matchedY = key;
+        break;
+      }
+    }
+    
+    if (matchedY !== null) {
+      rows.get(matchedY)!.push(item);
+    } else {
+      rows.set(item.y, [item]);
+    }
+  }
+  
+  return rows;
+}
+
+/**
+ * Extract product data from reconstructed text lines.
+ * 
+ * Strategy: For each line, check if it contains a known product name.
+ * Then extract all R$ values and % values from the line.
+ * 
+ * Column mapping (0-indexed):
+ * R$ values: [0]=Total Custo, [1]=Total Receita Bruta, [2]=Lucro Bruto, [3]=Total Receita Liquida, [4]=Lucro Lqd
+ * % values: [0]=% Margem Bruta, [1]=%Margem Liquida, [2]=% Participação
+ */
+function extractProductData(lines: string[]): PdfExtractedData[] {
+  const results: PdfExtractedData[] = [];
+
+  for (const line of lines) {
+    // Skip header/total lines
+    const upper = line.toUpperCase();
+    if (upper.includes('TOTAL GERAL') || upper.includes('GRUPOS') || upper.includes('TOTAL CUSTO')) continue;
+
+    // Capture the full name section before any R$ value (preserves possible stacked names)
+    const nameSection = line.split(/R\$/)[0].trim();
+    if (!nameSection || !nameSection.match(/[A-Z]/i)) continue;
+
+    const rawNames = nameSection.includes('\n')
+      ? nameSection.split('\n').map((n) => n.trim()).filter(Boolean)
+      : [nameSection];
+
+    // Extract all R$ amounts and percentages from the line
+    const currencyMatches = line.match(/R\$\s*[\d.,]+/g) || [];
+    const currencyValues = currencyMatches.map(parseBrCurrency);
+
+    const percentMatches = line.match(/[\d]+[.,][\d]+%/g) || [];
+    const percentValues = percentMatches.map(parseBrPercent);
+
+    // When names are stacked on the same line, split the values evenly between them
+    const groupCount = rawNames.length;
+    const currencyGroupSize = Math.max(1, Math.ceil(currencyValues.length / groupCount));
+    const percentGroupSize = Math.max(1, Math.ceil(percentValues.length / groupCount));
+
+    for (let idx = 0; idx < rawNames.length; idx++) {
+      const rawName = rawNames[idx];
+      const mappedName = matchPdfNameToProductLine(rawName);
+      if (!mappedName || results.find((r) => r.productName === mappedName)) continue;
+
+      const cSlice = currencyValues.slice(idx * currencyGroupSize, (idx + 1) * currencyGroupSize);
+      const pSlice = percentValues.slice(idx * percentGroupSize, (idx + 1) * percentGroupSize);
+
+      // Column mapping (0-indexed):
+      // R$ values: [0]=Total Custo, [1]=Total Receita Bruta, [2]=Lucro Bruto, [3]=Total Receita Liquida, [4]=Lucro Lqd
+      // % values: [0]=% Margem Bruta, [1]=%Margem Liquida, [2]=% Participação
+      const totalReceitaLiquida = cSlice.length >= 4 ? cSlice[3] :
+                                   cSlice.length >= 3 ? cSlice[2] : 0;
+      const lucroLiquido = cSlice.length >= 5 ? cSlice[4] :
+                           cSlice.length >= 4 ? cSlice[3] - (cSlice[0] || 0) : 0;
+      const margemLiquida = pSlice.length >= 2 ? pSlice[1] :
+                            pSlice.length >= 1 ? pSlice[0] : 0;
+      const participacao = pSlice.length >= 3 ? pSlice[2] :
+                           pSlice.length >= 2 ? pSlice[pSlice.length - 1] : 0;
+
+      if (totalReceitaLiquida > 0) {
+        results.push({
+          productName: mappedName,
+          totalReceitaLiquida,
+          lucroLiquido,
+          margemLiquida,
+          participacao,
         });
       }
     }
   }
 
-  // Correção cirúrgica: se um item tiver "TIJOLOS (0568)" e "TELHAS DE FIBROCIMENTO (0055)"
-  // fundidos na descrição, dividir os valores (1º = Tijolos, 2º = Telhas).
-  const splitNumbers = (raw: any): number[] => {
-    if (typeof raw === 'number') return [raw];
-    const matches = String(raw ?? '')
-      .match(/-?\d{1,3}(?:\.\d{3})*(?:,\d+)?|-?\d+(?:[.,]\d+)?/g);
-    if (!matches) return [];
-    return matches.map((m) => cleanVal(m));
-  };
-
-  const result: any[] = [];
-  for (const item of items) {
-    const hasTijolos = /TIJOLOS\s*\(?0?568\)?/i.test(item.name);
-    const hasTelhas = /TELHAS\s+DE\s+FIBROCIMENTO\s*\(?0?055\)?/i.test(item.name);
-
-    if (hasTijolos && hasTelhas) {
-      const pick = (n: number[], idx: number) => n[idx] ?? n[0] ?? 0;
-      const cost = splitNumbers(item.cost);
-      const gross = splitNumbers(item.grossRevenue);
-      const net = splitNumbers(item.netRevenue);
-      const profit = splitNumbers(item.netProfit);
-      const margin = splitNumbers(item.marginRealized);
-
-      result.push({
-        name: 'TIJOLOS (0568)',
-        cost: pick(cost, 0),
-        grossRevenue: pick(gross, 0),
-        netRevenue: pick(net, 0),
-        netProfit: pick(profit, 0),
-        marginRealized: pick(margin, 0),
-      });
-      result.push({
-        name: 'TELHAS DE FIBROCIMENTO (0055)',
-        cost: pick(cost, 1),
-        grossRevenue: pick(gross, 1),
-        netRevenue: pick(net, 1),
-        netProfit: pick(profit, 1),
-        marginRealized: pick(margin, 1),
-      });
-    } else {
-      result.push(item);
-    }
-  }
-
-  return result;
+  return results;
 }
