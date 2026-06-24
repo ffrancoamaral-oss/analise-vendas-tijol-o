@@ -42,6 +42,7 @@ export const DEFAULT_PRODUCT_LINES: ProductLineDefault[] = [
   { name: 'PREGOS', marginTarget: 21.00, participationTarget: 0.04 },
   { name: 'LAMPADAS', marginTarget: 62.00, participationTarget: 0.03 },
   { name: 'LUMINARIAS/PENDENTES', marginTarget: 0.00, participationTarget: 0.00 },
+  { name: 'TELHAS ACRILICAS', marginTarget: 0.00, participationTarget: 0.00 },
   { name: 'PRODUTOS USO E CONSUMO', marginTarget: 0.00, participationTarget: 0.00 },
   { name: 'CADEADO', marginTarget: 0.00, participationTarget: 0.00 },
   { name: 'FECHADURAS', marginTarget: 0.00, participationTarget: 0.00 },
@@ -89,20 +90,19 @@ const PDF_NAME_MAP: Record<string, string> = {
   'PRODUTOS USO E CONSUMO': 'PRODUTOS USO E CONSUMO',
   'CADEADO': 'CADEADO',
   'FECHADURAS': 'FECHADURAS',
-  'TELHAS ACRILICAS': 'TELHAS DE FIBROCIMENTO', // Map variant
+  'TELHAS ACRILICAS': 'TELHAS ACRILICAS',
   'FIO/CABO ELETRICO': 'FIO/CABO ELÉTRICO',
 };
 
 export function matchPdfNameToProductLine(pdfName: string): string | null {
-  // Remove code in parentheses like "(0006)"
+  // Remove code in parentheses like "(0006)" and normalize
   const cleanName = pdfName.replace(/\s*\(\d+\)\s*$/, '').trim().toUpperCase();
-  
-  if (PDF_NAME_MAP[cleanName]) return PDF_NAME_MAP[cleanName];
-  
-  // Fuzzy match
-  for (const [key, value] of Object.entries(PDF_NAME_MAP)) {
-    if (cleanName.includes(key) || key.includes(cleanName)) return value;
+
+  // Strict exact match only — prevents string collisions
+  // (e.g. "TELHAS ACRILICAS" must NOT match "TELHAS DE FIBROCIMENTO")
+  if (Object.prototype.hasOwnProperty.call(PDF_NAME_MAP, cleanName)) {
+    return PDF_NAME_MAP[cleanName];
   }
-  
+
   return null;
 }
