@@ -39,7 +39,8 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
           <div className="stat-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Vendas Realizadas vs Meta</p>
             <p className="text-2xl font-bold font-mono mt-1">{formatCurrency(totals.totalRealized)}</p>
-            <p className={`text-xs font-semibold mt-1 ${totals.performance >= 100 ? 'value-positive' : 'value-negative'}`}>
+            <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${salesOnTrack ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
+              {salesOnTrack ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
               {formatPercent(totals.performance)} da meta
             </p>
           </div>
