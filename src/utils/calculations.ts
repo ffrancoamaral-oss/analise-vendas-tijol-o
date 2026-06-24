@@ -27,30 +27,46 @@ export function getCurve(participationTarget: number): CurveType {
 
 export function getCurveTotals(data: AnalysisData) {
   const curves = { A: { target: 0, realized: 0 }, B: { target: 0, realized: 0 }, C: { target: 0, realized: 0 } };
-  
+
+  if (!data || !data.productLines) return curves;
+
   for (const line of data.productLines) {
     const curve = getCurve(line.participationTarget);
     curves[curve].target += line.salesTarget;
     curves[curve].realized += line.salesRealized;
   }
-  
+
   return curves;
 }
 
 export function getMarginByCurve(data: AnalysisData) {
   const curves = { A: { above: 0, below: 0 }, B: { above: 0, below: 0 }, C: { above: 0, below: 0 } };
-  
+
+  if (!data || !data.productLines) return curves;
+
   for (const line of data.productLines) {
     const curve = getCurve(line.participationTarget);
     const marginResult = line.marginRealized - line.marginTarget;
     if (marginResult >= 0) curves[curve].above++;
     else curves[curve].below++;
   }
-  
+
   return curves;
 }
 
 export function getTotals(data: AnalysisData) {
+  const fallback = {
+    totalTarget: 0,
+    totalRealized: 0,
+    totalLucroLiquido: 0,
+    marginPercent: 0,
+    performance: 0,
+    aboveMeta: 0,
+    belowMeta: 0,
+  };
+
+  if (!data || !data.productLines) return fallback;
+
   let totalTarget = 0;
   let totalRealized = 0;
   let totalLucroLiquido = 0;
@@ -58,14 +74,14 @@ export function getTotals(data: AnalysisData) {
   let belowMeta = 0;
 
   for (const line of data.productLines) {
-    totalTarget += line.salesTarget;
-    totalRealized += line.salesRealized;
+    totalTarget += line.salesTarget || 0;
+    totalRealized += line.salesRealized || 0;
     const lucro = typeof line.lucroLiquido === 'number'
       ? line.lucroLiquido
-      : (line.marginRealized / 100) * line.salesRealized;
+      : ((line.marginRealized || 0) / 100) * (line.salesRealized || 0);
     totalLucroLiquido += lucro;
-    if (line.salesRealized >= line.salesTarget && line.salesTarget > 0) aboveMeta++;
-    else if (line.salesTarget > 0) belowMeta++;
+    if ((line.salesRealized || 0) >= (line.salesTarget || 0) && (line.salesTarget || 0) > 0) aboveMeta++;
+    else if ((line.salesTarget || 0) > 0) belowMeta++;
   }
 
   const marginPercent = totalRealized > 0 ? (totalLucroLiquido / totalRealized) * 100 : 0;
@@ -82,6 +98,8 @@ export function getTotals(data: AnalysisData) {
 }
 
 export function getAverageMargin(data: AnalysisData, type: 'target' | 'realized') {
+  if (!data || !data.productLines) return 0;
+
   if (type === 'realized') {
     const { marginPercent } = getTotals(data);
     return marginPercent;
@@ -89,7 +107,7 @@ export function getAverageMargin(data: AnalysisData, type: 'target' | 'realized'
 
   let sumWeighted = 0;
   for (const line of data.productLines) {
-    sumWeighted += calculateWeightedAverage(line.marginTarget, line.participationTarget);
+    sumWeighted += calculateWeightedAverage(line.marginTarget || 0, line.participationTarget || 0);
   }
 
   return sumWeighted;

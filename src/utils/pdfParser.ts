@@ -1,3 +1,9 @@
+export async function parsePdfFile(file: File): Promise<any[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const text = await extractPDFText(arrayBuffer);
+  return parseTijolaoPDFText(text);
+}
+
 export function parseTijolaoPDFText(pdfText: string): any[] {
   const lines = pdfText.split("\n");
   const items: any[] = [];
