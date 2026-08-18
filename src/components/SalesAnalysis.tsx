@@ -289,18 +289,24 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               </tr>
             </thead>
             <tbody>
-              {(['A', 'B', 'C'] as const).map((c) => (
-                <tr key={c}>
-                  <td className="font-sans font-medium">Curva {c}</td>
-                  <td className="text-right">{formatCurrency(curveTotals[c].target)}</td>
-                  <td className="text-right">{formatCurrency(curveTotals[c].realized)}</td>
-                  <td className="text-right">
-                    {curveTotals[c].target > 0
-                      ? formatPercent((curveTotals[c].realized / curveTotals[c].target) * 100)
-                      : '0.00%'}
-                  </td>
-                </tr>
-              ))}
+              {(['A', 'B', 'C'] as const).map((c) => {
+                const count = allLines.filter((line) => getCurve(line.participationTarget) === c).length;
+                const plural = count === 1 ? 'linha' : 'linhas';
+                return (
+                  <tr key={c}>
+                    <td className="font-sans font-medium">
+                      Curva {c} <span className="text-xs text-muted-foreground font-normal">— {count} {plural}</span>
+                    </td>
+                    <td className="text-right">{formatCurrency(curveTotals[c].target)}</td>
+                    <td className="text-right">{formatCurrency(curveTotals[c].realized)}</td>
+                    <td className="text-right">
+                      {curveTotals[c].target > 0
+                        ? formatPercent((curveTotals[c].realized / curveTotals[c].target) * 100)
+                        : '0.00%'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
