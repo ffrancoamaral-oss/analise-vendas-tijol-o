@@ -60,6 +60,12 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
 
   // Apply chained filters
   const filteredLines = allLines.filter((line) => {
+    // Text search (Descrição)
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      const name = (line.name ?? '').toLowerCase();
+      if (!name.includes(query)) return false;
+    }
     // Curve filter
     if (curveFilter !== 'all') {
       const curve = getCurve(line.participationTarget);
