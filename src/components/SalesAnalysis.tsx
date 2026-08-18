@@ -167,7 +167,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="positive">Vendas Positivas (Performance ≥ % Dias Úteis)</SelectItem>
-                <SelectItem value="negative">Vendas Negativas (Performance < % Dias Úteis)</SelectItem>
+                <SelectItem value="negative">{`Vendas Negativas (Performance < % Dias Úteis)`}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -178,7 +178,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="positive">Margem Positiva (Resultado ≥ 0)</SelectItem>
-                <SelectItem value="negative">Margem Negativa (Resultado < 0)</SelectItem>
+                <SelectItem value="negative">{`Margem Negativa (Resultado < 0)`}</SelectItem>
               </SelectContent>
             </Select>
           </div>
