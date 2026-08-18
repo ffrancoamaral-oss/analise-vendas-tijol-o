@@ -193,6 +193,16 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Descrição</span>
+            <Input
+              type="text"
+              placeholder="Buscar linha de produto..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full"
+            />
+          </div>
           <span className="text-xs text-muted-foreground ml-auto self-end">
             {filteredLines.length} de {allLines.length} linhas
           </span>
