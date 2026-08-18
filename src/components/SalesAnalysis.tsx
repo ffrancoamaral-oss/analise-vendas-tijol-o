@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 interface SalesAnalysisProps {
   data: AnalysisData;
@@ -43,6 +44,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
   const [curveFilter, setCurveFilter] = React.useState<CurveFilter>('all');
   const [salesFilter, setSalesFilter] = React.useState<SalesFilter>('all');
   const [marginFilter, setMarginFilter] = React.useState<MarginFilter>('all');
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const totals = getTotals(data);
   const curveTotals = getCurveTotals(data);
@@ -58,6 +60,12 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
 
   // Apply chained filters
   const filteredLines = allLines.filter((line) => {
+    // Text search (Descrição)
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      const name = (line.name ?? '').toLowerCase();
+      if (!name.includes(query)) return false;
+    }
     // Curve filter
     if (curveFilter !== 'all') {
       const curve = getCurve(line.participationTarget);
@@ -185,6 +193,16 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Descrição</span>
+            <Input
+              type="text"
+              placeholder="Buscar linha de produto..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full"
+            />
+          </div>
           <span className="text-xs text-muted-foreground ml-auto self-end">
             {filteredLines.length} de {allLines.length} linhas
           </span>
@@ -271,18 +289,24 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               </tr>
             </thead>
             <tbody>
-              {(['A', 'B', 'C'] as const).map((c) => (
-                <tr key={c}>
-                  <td className="font-sans font-medium">Curva {c}</td>
-                  <td className="text-right">{formatCurrency(curveTotals[c].target)}</td>
-                  <td className="text-right">{formatCurrency(curveTotals[c].realized)}</td>
-                  <td className="text-right">
-                    {curveTotals[c].target > 0
-                      ? formatPercent((curveTotals[c].realized / curveTotals[c].target) * 100)
-                      : '0.00%'}
-                  </td>
-                </tr>
-              ))}
+              {(['A', 'B', 'C'] as const).map((c) => {
+                const count = allLines.filter((line) => getCurve(line.participationTarget) === c).length;
+                const plural = count === 1 ? 'linha' : 'linhas';
+                return (
+                  <tr key={c}>
+                    <td className="font-sans font-medium">
+                      Curva {c} <span className="text-xs text-muted-foreground font-normal">— {count} {plural}</span>
+                    </td>
+                    <td className="text-right">{formatCurrency(curveTotals[c].target)}</td>
+                    <td className="text-right">{formatCurrency(curveTotals[c].realized)}</td>
+                    <td className="text-right">
+                      {curveTotals[c].target > 0
+                        ? formatPercent((curveTotals[c].realized / curveTotals[c].target) * 100)
+                        : '0.00%'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
