@@ -49,10 +49,10 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
   const marginByCurve = getMarginByCurve(data);
   const marginTargetAvg = getAverageMargin(data, 'target');
   const marginOnTrack = totals.marginPercent >= marginTargetAvg;
-  const salesOnTrack = totals.performance >= workingDaysPct;
   const workingDaysPct = data.dateConfig.totalWorkingDays > 0
     ? ((data.dateConfig.workingDaysUsed / data.dateConfig.totalWorkingDays) * 100)
     : 0;
+  const salesOnTrack = totals.performance >= workingDaysPct;
 
   const allLines: ProductLineData[] = data?.productLines ?? [];
 
