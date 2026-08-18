@@ -55,6 +55,10 @@ export function getMarginByCurve(data: AnalysisData) {
 }
 
 export function getTotals(data: AnalysisData) {
+  return getTotalsFromLines(data?.productLines);
+}
+
+export function getTotalsFromLines(lines?: ProductLineData[] | null) {
   const fallback = {
     totalTarget: 0,
     totalRealized: 0,
@@ -65,7 +69,7 @@ export function getTotals(data: AnalysisData) {
     belowMeta: 0,
   };
 
-  if (!data || !data.productLines) return fallback;
+  if (!lines) return fallback;
 
   let totalTarget = 0;
   let totalRealized = 0;
@@ -73,7 +77,7 @@ export function getTotals(data: AnalysisData) {
   let aboveMeta = 0;
   let belowMeta = 0;
 
-  for (const line of data.productLines) {
+  for (const line of lines) {
     totalTarget += line.salesTarget || 0;
     totalRealized += line.salesRealized || 0;
     const lucro = typeof line.lucroLiquido === 'number'
