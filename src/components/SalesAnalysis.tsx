@@ -49,7 +49,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
   const marginByCurve = getMarginByCurve(data);
   const marginTargetAvg = getAverageMargin(data, 'target');
   const marginOnTrack = totals.marginPercent >= marginTargetAvg;
-  const salesOnTrack = totals.performance >= 100;
+  const salesOnTrack = totals.performance >= workingDaysPct;
   const workingDaysPct = data.dateConfig.totalWorkingDays > 0
     ? ((data.dateConfig.workingDaysUsed / data.dateConfig.totalWorkingDays) * 100)
     : 0;
@@ -95,8 +95,11 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Vendas Realizadas vs Meta</p>
             <p className="text-2xl font-bold font-mono mt-1">{formatCurrency(totals.totalRealized)}</p>
             <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${salesOnTrack ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
-              {salesOnTrack ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+              {salesOnTrack ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
               {formatPercent(totals.performance)} da meta
+            </p>
+            <p className={`text-xs mt-1 ${salesOnTrack ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {salesOnTrack ? 'Acima do ritmo ideal' : 'Abaixo do ritmo ideal'}
             </p>
           </div>
           <div className="stat-card">
