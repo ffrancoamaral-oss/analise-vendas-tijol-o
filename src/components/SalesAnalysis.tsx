@@ -17,7 +17,17 @@ interface SalesAnalysisProps {
   onGrossRevenueChange: (value: number) => void;
 }
 
+function parseInputNumber(raw: string): number {
+  const cleaned = raw.replace(/[^\d,.-]/g, '');
+  // pt-BR style: dots as thousand separators, comma as decimal
+  const normalized = cleaned.includes(',')
+    ? cleaned.replace(/\./g, '').replace(',', '.')
+    : cleaned;
+  return parseFloat(normalized);
+}
+
 const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChange }) => {
+  const [draft, setDraft] = React.useState<string | null>(null);
   const totals = getTotals(data);
   const curveTotals = getCurveTotals(data);
   const marginByCurve = getMarginByCurve(data);
@@ -58,26 +68,27 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
             <p className="text-2xl font-bold font-mono mt-1">{data.dateConfig.totalMonthDays}</p>
           </div>
           <div className="stat-card">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Faturamento Bruto Total</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Meta de Faturamento Total</p>
             <input
               type="text"
+              inputMode="decimal"
               className="editable-cell w-full text-xl font-bold font-mono mt-1"
-              value={formatCurrency(data.grossRevenue)}
-              onChange={(e) => {
-                const val = e.target.value.replace(/[^\d,.-]/g, '').replace(',', '.');
-                const num = parseFloat(val);
-                if (!isNaN(num)) onGrossRevenueChange(num);
+              value={draft ?? formatCurrency(data.grossRevenue)}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => setDraft(String(data.grossRevenue))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
               }}
-              onFocus={(e) => {
-                e.target.value = data.grossRevenue.toString();
-                e.target.select();
-              }}
-              onBlur={(e) => {
-                const num = parseFloat(e.target.value);
-                if (!isNaN(num)) onGrossRevenueChange(num);
+              onBlur={() => {
+                if (draft !== null) {
+                  const num = parseInputNumber(draft);
+                  if (!isNaN(num)) onGrossRevenueChange(num);
+                }
+                setDraft(null);
               }}
             />
           </div>
+
           <div className="stat-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Margem Líquida Total</p>
             <p className={`text-2xl font-bold font-mono mt-1 flex items-center gap-1 ${marginOnTrack ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
