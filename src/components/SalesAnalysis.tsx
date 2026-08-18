@@ -44,6 +44,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
   const [curveFilter, setCurveFilter] = React.useState<CurveFilter>('all');
   const [salesFilter, setSalesFilter] = React.useState<SalesFilter>('all');
   const [marginFilter, setMarginFilter] = React.useState<MarginFilter>('all');
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const totals = getTotals(data);
   const curveTotals = getCurveTotals(data);
