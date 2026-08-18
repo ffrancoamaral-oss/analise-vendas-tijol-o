@@ -1,21 +1,33 @@
 import React from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
-import type { AnalysisData } from '@/types/analysis';
+import type { AnalysisData, ProductLineData } from '@/types/analysis';
 import {
   calculatePerformance,
   getCurve,
   getCurveTotals,
   getMarginByCurve,
   getTotals,
+  getTotalsFromLines,
   getAverageMargin,
   formatCurrency,
   formatPercent,
 } from '@/utils/calculations';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface SalesAnalysisProps {
   data: AnalysisData;
   onGrossRevenueChange: (value: number) => void;
 }
+
+type CurveFilter = 'all' | 'A' | 'B' | 'C';
+type SalesFilter = 'all' | 'positive' | 'negative';
+type MarginFilter = 'all' | 'positive' | 'negative';
 
 function parseInputNumber(raw: string): number {
   const cleaned = raw.replace(/[^\d,.-]/g, '');
@@ -28,6 +40,10 @@ function parseInputNumber(raw: string): number {
 
 const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChange }) => {
   const [draft, setDraft] = React.useState<string | null>(null);
+  const [curveFilter, setCurveFilter] = React.useState<CurveFilter>('all');
+  const [salesFilter, setSalesFilter] = React.useState<SalesFilter>('all');
+  const [marginFilter, setMarginFilter] = React.useState<MarginFilter>('all');
+
   const totals = getTotals(data);
   const curveTotals = getCurveTotals(data);
   const marginByCurve = getMarginByCurve(data);
@@ -37,6 +53,35 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
   const workingDaysPct = data.dateConfig.totalWorkingDays > 0
     ? ((data.dateConfig.workingDaysUsed / data.dateConfig.totalWorkingDays) * 100)
     : 0;
+
+  const allLines: ProductLineData[] = data?.productLines ?? [];
+
+  // Apply chained filters
+  const filteredLines = allLines.filter((line) => {
+    // Curve filter
+    if (curveFilter !== 'all') {
+      const curve = getCurve(line.participationTarget);
+      if (curve !== curveFilter) return false;
+    }
+    // Sales filter (Performance vs % Dias Úteis)
+    if (salesFilter !== 'all') {
+      const perf = calculatePerformance(line.salesRealized, line.salesTarget);
+      const isPositive = perf >= workingDaysPct;
+      if (salesFilter === 'positive' && !isPositive) return false;
+      if (salesFilter === 'negative' && isPositive) return false;
+    }
+    // Margin filter (Resultado da Margem)
+    if (marginFilter !== 'all') {
+      const marginResult = line.marginRealized - line.marginTarget;
+      const isPositive = marginResult >= 0;
+      if (marginFilter === 'positive' && !isPositive) return false;
+      if (marginFilter === 'negative' && isPositive) return false;
+    }
+    return true;
+  });
+
+  // Totals reflect only visible (filtered) lines
+  const visibleTotals = getTotalsFromLines(filteredLines);
 
   return (
     <div className="space-y-6">
@@ -100,6 +145,49 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
         </div>
       </div>
 
+      {/* Filter Toolbar */}
+      <div className="module-card p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Curva</span>
+            <Select value={curveFilter} onValueChange={(v) => setCurveFilter(v as CurveFilter)}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Curva" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="A">Curva A</SelectItem>
+                <SelectItem value="B">Curva B</SelectItem>
+                <SelectItem value="C">Curva C</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Vendas</span>
+            <Select value={salesFilter} onValueChange={(v) => setSalesFilter(v as SalesFilter)}>
+              <SelectTrigger className="w-[240px]"><SelectValue placeholder="Vendas" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="positive">Vendas Positivas (Performance ≥ % Dias Úteis)</SelectItem>
+                <SelectItem value="negative">Vendas Negativas (Performance < % Dias Úteis)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Margem</span>
+            <Select value={marginFilter} onValueChange={(v) => setMarginFilter(v as MarginFilter)}>
+              <SelectTrigger className="w-[220px]"><SelectValue placeholder="Margem" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="positive">Margem Positiva (Resultado ≥ 0)</SelectItem>
+                <SelectItem value="negative">Margem Negativa (Resultado < 0)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <span className="text-xs text-muted-foreground ml-auto self-end">
+            {filteredLines.length} de {allLines.length} linhas
+          </span>
+        </div>
+      </div>
+
       {/* Main Table */}
       <div className="module-card overflow-x-auto">
         <table className="analysis-table">
@@ -114,18 +202,20 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
             </tr>
           </thead>
           <tbody>
-            {data?.productLines?.map((line, idx) => {
+            {filteredLines.map((line, idx) => {
               const perf = calculatePerformance(line.salesRealized, line.salesTarget);
               const curve = getCurve(line.participationTarget);
               const marginResult = line.marginRealized - line.marginTarget;
               const curveClass = curve === 'A' ? 'curve-a' : curve === 'B' ? 'curve-b' : 'curve-c';
-              
+              // Semáforo: performance vs % dias úteis percorridos
+              const perfOnTrack = perf >= workingDaysPct;
+
               return (
                 <tr key={idx} className={curveClass}>
                   <td className="sticky left-0 bg-card z-10 font-sans font-medium text-sm">{line.name}</td>
                   <td className="text-right">{formatCurrency(line.salesTarget)}</td>
                   <td className="text-right font-semibold">{formatCurrency(line.salesRealized)}</td>
-                  <td className={`text-right font-semibold ${perf >= 100 ? 'value-positive' : perf > 0 ? 'value-negative' : ''}`}>
+                  <td className={`text-right font-semibold ${perfOnTrack ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
                     {formatPercent(perf)}
                   </td>
                   <td className={`text-right ${marginResult >= 0 ? 'value-positive' : 'value-negative'}`}>
@@ -141,14 +231,21 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
                 </tr>
               );
             })}
+            {filteredLines.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-center text-muted-foreground py-6">
+                  Nenhuma linha corresponde aos filtros selecionados.
+                </td>
+              </tr>
+            )}
             <tr className="font-bold border-t-2 border-primary">
               <td className="sticky left-0 bg-card z-10 font-sans">TOTAL</td>
-              <td className="text-right">{formatCurrency(totals.totalTarget)}</td>
-              <td className="text-right">{formatCurrency(totals.totalRealized)}</td>
-              <td className={`text-right ${totals.performance >= 100 ? 'value-positive' : 'value-negative'}`}>
-                {formatPercent(totals.performance)}
+              <td className="text-right">{formatCurrency(visibleTotals.totalTarget)}</td>
+              <td className="text-right">{formatCurrency(visibleTotals.totalRealized)}</td>
+              <td className={`text-right ${visibleTotals.performance >= workingDaysPct ? 'value-positive text-emerald-600' : 'value-negative text-rose-600'}`}>
+                {formatPercent(visibleTotals.performance)}
               </td>
-              <td className="text-right value-positive">{formatPercent(totals.marginPercent)}</td>
+              <td className="text-right value-positive">{formatPercent(visibleTotals.marginPercent)}</td>
               <td></td>
             </tr>
           </tbody>
@@ -228,6 +325,7 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
         </div>
         <div className="flex gap-4 text-xs mt-2">
           <span>Meta: <strong className="value-negative">{totals.belowMeta}</strong> abaixo | <strong className="value-positive">{totals.aboveMeta}</strong> acima</span>
+          <span className="ml-4">Semáforo Performance: verde ≥ {formatPercent(workingDaysPct, 1)} (dias úteis)</span>
         </div>
       </div>
     </div>
