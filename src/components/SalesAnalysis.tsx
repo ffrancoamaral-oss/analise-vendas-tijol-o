@@ -230,6 +230,8 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
               const curveClass = curve === 'A' ? 'curve-a' : curve === 'B' ? 'curve-b' : 'curve-c';
               // Semáforo: performance vs % dias úteis percorridos
               const perfOnTrack = perf >= workingDaysPct;
+              // Participação da linha no faturamento realizado total
+              const participationPct = totals.totalRealized > 0 ? (line.salesRealized / totals.totalRealized) * 100 : 0;
 
               return (
                 <tr key={idx} className={curveClass}>
@@ -243,11 +245,11 @@ const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChang
                     {formatPercent(marginResult)}
                   </td>
                   <td className="text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
+                    <span className={`inline-block px-3 py-1 rounded text-xs font-bold ${
                       curve === 'A' ? 'bg-primary/20 text-primary' :
                       curve === 'B' ? 'bg-warning/20 text-warning' :
                       'bg-muted text-muted-foreground'
-                    }`}>{curve}</span>
+                    }`}>{curve} | {formatPercent(participationPct)}</span>
                   </td>
                 </tr>
               );
