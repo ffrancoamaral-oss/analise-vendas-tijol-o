@@ -17,7 +17,17 @@ interface SalesAnalysisProps {
   onGrossRevenueChange: (value: number) => void;
 }
 
+function parseInputNumber(raw: string): number {
+  const cleaned = raw.replace(/[^\d,.-]/g, '');
+  // pt-BR style: dots as thousand separators, comma as decimal
+  const normalized = cleaned.includes(',')
+    ? cleaned.replace(/\./g, '').replace(',', '.')
+    : cleaned;
+  return parseFloat(normalized);
+}
+
 const SalesAnalysis: React.FC<SalesAnalysisProps> = ({ data, onGrossRevenueChange }) => {
+  const [draft, setDraft] = React.useState<string | null>(null);
   const totals = getTotals(data);
   const curveTotals = getCurveTotals(data);
   const marginByCurve = getMarginByCurve(data);
